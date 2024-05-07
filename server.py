@@ -1,29 +1,27 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-#from crypto.Cipher import AES
-#import base64
+from cryptography.fernet import Fernet
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///donor.db'
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///login.db'
 db = SQLAlchemy(app)
 
-#def encrypt_data(data):
-#    key = b'hhhkjkl;'
-#    iv = b'ljkgyjnk'
-#    cipher = AES.new(key, AES.MODE_CBC, iv)
-#    encrypted_data = cipher.encrypt(data.encode())
-#    return base64.b64encode(encrypted_data).decode()
-#
-#def decrypt_data(data):
-#    key = b'hhhkjkl'
-#    iv = b'ljkgyjnk'
-#    decoded_data = base64.b64decode(data.encode())
-#    cipher = AES.new(key, AES.MODE_CBC, iv)
-#    decrypted_data = cipher.decrypt(decoded_data).decode()
-#    #return decrypted_data
+# AES encryption key
+encryption_key = Fernet.generate_key()
+fernet = Fernet(encryption_key)
 
-class Donor(db.Model):
+class BaseModel(db.Model):
+    __abstract__ = True
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    phone = db.Column(db.String(20), unique=True, nullable=False)
+    blood_group = db.Column(db.String(10), nullable=False)
+    location_x = db.Column(db.String(100), nullable=False)
+    location_y = db.Column(db.String(100), nullable=False)
+
+class Donor(BaseModel):
+    __tablename__ = 'donors'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
@@ -35,8 +33,9 @@ class Donor(db.Model):
         return f'<Donor {self.name}>'
     def __str__(self) -> str:
         return self.id, self.name, self.email, self.blood_group
-    
-class Recipient(db.Model):
+
+class Recipient(BaseModel):
+    __tablename__ = 'recipients'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
@@ -46,8 +45,9 @@ class Recipient(db.Model):
     location_y = db.Column(db.String(100), nullable=False)
     def __repr__(self):
         return f'<Recipient {self.name}>'
-    
-class Doctor(db.Model):
+
+class Doctor(BaseModel):
+    __tablename__ = 'doctors'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
@@ -59,14 +59,11 @@ class Doctor(db.Model):
         return f'<Recipient {self.name}>'
 
 class Login(db.Model):
-    id = db.Column(db.String(20), primary_key=True, unique = True)
+    id = db.Column(db.String(20), primary_key=True, unique=True)
     password = db.Column(db.String(20), primary_key=False)
-    def __repr__(self):
-        return f'<Login {self.id}>'
-    
-@app.route('/insert_donor', methods=['get'])
+
+@app.route('/insert_donor', methods=['POST'])
 def insert_donor():
-    #data = request.get_json()
     print('donor works')
     name = request.args.get('name')
     email = request.args.get('email')
@@ -80,11 +77,9 @@ def insert_donor():
     db.session.commit()
 
     return jsonify({'message': 'Donor added successfully'})
-
-@app.route('/insert_recipient', methods=['get'])
+@app.route('/insert_recipient', methods=['POST'])
 def insert_recipient():
-    #data = request.get_json()
-    print('donor works')
+    #  print('donor works') 
     name = request.args.get('name')
     email = request.args.get('email')
     phone = request.args.get('phone')
@@ -96,11 +91,8 @@ def insert_recipient():
     db.session.add(new_donor)
     db.session.commit()
 
-    return jsonify({'message': 'Donor added successfully'})
-
-@app.route('/insert_doctor', methods=['get'])
+@app.route('/insert_doctor', methods=['POST'])
 def insert_doctor():
-    #data = request.get_json()
     print('doctor works')
     name = request.args.get('name')
     email = request.args.get('email')
@@ -113,28 +105,23 @@ def insert_doctor():
     db.session.add(new_doctor)
     db.session.commit()
 
-    return jsonify({'message': 'Doctor added successfully'})
+    return jsonify({'message': 'Doctor added successfully'})# similar implementation to insert_donor
 
-@app.route('/insert_login', methods=['get'])
+@app.route('/insert_login', methods=['POST'])
 def insert_login():
-    #data = request.get_json()
-    print('this function works')
-    id = request.args.get('id')
-    password = request.args.get('password')
-    print(id, password)
-    new_login = Login(id = id, password = password)
-    db.session.add(new_login)
-    db.session.commit()
-
-    return jsonify({'message': 'Login added successfully'})
+    data = request.get_json()
+    try:
+        login = Login(id=data['id'], password=fernet.encrypt(data['password'].encode()))
+        db.session.add(login)
+        db.session.commit()
+        return jsonify({'message': 'Login added successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/get_donor', methods=['get'])
 def get_donor():
-    print(Donor.query.all())
+    print(type(Donor.query.all()))
     return jsonify({'contents':Donor.query.all()})
-    
-
-
 '''
 @app.route('/insert_donor', methods=['POST'])
 def insert_donor():
